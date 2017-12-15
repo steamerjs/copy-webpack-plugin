@@ -1,7 +1,6 @@
 import fs from 'fs';
 import pify from 'pify';
 import path from 'path';
-import _ from 'lodash';
 import isGlob from 'is-glob';
 
 // https://www.debuggex.com/r/VH2yS2mvJOitiyr3
@@ -13,7 +12,7 @@ export default function preProcessPattern(globalRef, pattern) {
 
     pattern = typeof pattern === 'string' ? {
         from: pattern
-    } : _.cloneDeep(pattern);
+    } : Object.assign({}, pattern);
     pattern.to = pattern.to || '';
     pattern.context = pattern.context || context;
     if (!path.isAbsolute(pattern.context)) {
@@ -39,9 +38,13 @@ export default function preProcessPattern(globalRef, pattern) {
     debug(`determined '${pattern.to}' is a '${pattern.toType}'`);
 
     // If we know it's a glob, then bail early
-    if (_.isObject(pattern.from) && pattern.from.glob) {
+    if (Object.prototype.toString.call(pattern.from) === '[object Object]' && pattern.from.glob) {
         pattern.fromType = 'glob';
-        pattern.fromArgs = _.omit(pattern.from, ['glob']);
+
+        const fromArgs = Object.assign({}, pattern.from);
+        delete fromArgs.glob;
+
+        pattern.fromArgs = fromArgs;
         pattern.absoluteFrom = path.resolve(pattern.context, pattern.from.glob);
         return Promise.resolve(pattern);
     }
