@@ -1,6 +1,6 @@
 {
   "name": "copy-webpack-plugin-hash",
-  "version": "5.1.3",
+  "version": "5.1.4",
   "description": "Copy files and directories in webpack",
   "author": "Len Boyette",
   "license": "MIT",
