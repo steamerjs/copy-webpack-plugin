@@ -1,3 +1,4 @@
+//@ts-nocheck
 /* globals describe, it, __dirname */
 import {
     expect
@@ -16,6 +17,7 @@ import zlib from 'zlib';
 const BUILD_DIR = path.join(__dirname, 'build');
 const HELPER_DIR = path.join(__dirname, 'helpers');
 const TEMP_DIR = path.join(__dirname, 'tempdir');
+
 
 class MockCompiler {
     constructor (options = {}) {
@@ -37,16 +39,24 @@ class MockCompiler {
                 name: 'NotMemoryFileSystem'
             }
         };
-    }
 
-    plugin (type, fn) {
-        if (type === 'emit') {
-            this.emitFn = fn;
-        }
+        this.hooks = {
+            emit: {
+                tapAsync: (name, fn) => {
+                    this.emitFn = fn;
+                }
+            },
+            afterEmit: {
+                tapAsync: (name, fn) =>{
+                    this.afterEmitFn = fn;
+                }
+            },
+            compilation: {
+                tap() {
 
-        if (type === 'after-emit') {
-            this.afterEmitFn = fn;
-        }
+                }
+            }
+        };
     }
 }
 
@@ -64,9 +74,9 @@ describe('apply function', () => {
             // Call the registered function with a mock compilation and callback
             const compilation = Object.assign({
                 assets: {},
-                contextDependencies: [],
+                contextDependencies: new Set(),
                 errors: [],
-                fileDependencies: []
+                fileDependencies: new Set()
             }, opts.compilation);
 
             // Execute the functions in series
@@ -155,9 +165,9 @@ describe('apply function', () => {
         const compiler = new MockCompiler();
         const compilation = {
             assets: {},
-            contextDependencies: [],
+            contextDependencies: new Set(),
             errors: [],
-            fileDependencies: []
+            fileDependencies: new Set()
         };
 
         return run({
@@ -768,7 +778,7 @@ describe('apply function', () => {
             .then((compilation) => {
                 const absFrom = path.join(HELPER_DIR, 'file.txt');
 
-                expect(compilation.fileDependencies).to.have.members([absFrom]);
+                expect(compilation.fileDependencies).to.have.include(absFrom);
             })
             .then(done)
             .catch(done);
@@ -1056,7 +1066,7 @@ describe('apply function', () => {
             .then((compilation) => {
                 const absFrom = path.join(HELPER_DIR, 'directory');
 
-                expect(compilation.contextDependencies).to.have.members([absFrom]);
+                expect(compilation.contextDependencies).to.have.include(absFrom);
             })
             .then(done)
             .catch(done);

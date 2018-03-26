@@ -55,7 +55,7 @@ function CopyWebpackPlugin(patterns = [], options = {}) {
             context = options.context;
         }
 
-        compiler.plugin('emit', (compilation, cb) => {
+        compiler.hooks.emit.tapAsync('CopyWebpackPlugin', (compilation, cb) => {
             debug('starting emit');
             const callback = () => {
                 debug('finishing emit');
@@ -104,8 +104,7 @@ function CopyWebpackPlugin(patterns = [], options = {}) {
             .then(() => callback());
         });
 
-        compiler.plugin('after-emit', (compilation, cb) => {
-            debug('starting after-emit');
+        compiler.hooks.afterEmit.tapAsync('CopyWebpackPlugin', (compilation, cb) => {
             const callback = () => {
                 debug('finishing after-emit');
                 cb();
@@ -120,7 +119,7 @@ function CopyWebpackPlugin(patterns = [], options = {}) {
                     debug(`not adding ${file} to change tracking, because it's already tracked`);
                 } else {
                     debug(`adding ${file} to change tracking`);
-                    compilation.fileDependencies.push(file);
+                    compilation.fileDependencies.add(file);
                 }
             });
 
@@ -130,7 +129,7 @@ function CopyWebpackPlugin(patterns = [], options = {}) {
                     debug(`not adding ${context} to change tracking, because it's already tracked`);
                 } else {
                     debug(`adding ${context} to change tracking`);
-                    compilation.contextDependencies.push(context);
+                    compilation.contextDependencies.add(context);
                 }
             });
 
