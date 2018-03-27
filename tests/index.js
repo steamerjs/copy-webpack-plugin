@@ -1,7 +1,10 @@
+//@ts-nocheck
 /* globals describe, it, __dirname */
 import {
     expect
 } from 'chai';
+import NodeJsInputFileSystem from 'enhanced-resolve/lib/NodeJsInputFileSystem';
+import CachedInputFileSystem from 'enhanced-resolve/lib/CachedInputFileSystem';
 
 // ensure we don't mess up classic imports
 const CopyWebpackPlugin = require('./../dist/index');
@@ -16,6 +19,7 @@ import zlib from 'zlib';
 const BUILD_DIR = path.join(__dirname, 'build');
 const HELPER_DIR = path.join(__dirname, 'helpers');
 const TEMP_DIR = path.join(__dirname, 'tempdir');
+
 
 class MockCompiler {
     constructor (options = {}) {
@@ -32,21 +36,31 @@ class MockCompiler {
             };
         }
 
+        this.inputFileSystem = new CachedInputFileSystem(new NodeJsInputFileSystem(), 0);
+
         this.outputFileSystem = {
             constructor: {
                 name: 'NotMemoryFileSystem'
             }
         };
-    }
 
-    plugin (type, fn) {
-        if (type === 'emit') {
-            this.emitFn = fn;
-        }
+        this.hooks = {
+            emit: {
+                tapAsync: (name, fn) => {
+                    this.emitFn = fn;
+                }
+            },
+            afterEmit: {
+                tapAsync: (name, fn) =>{
+                    this.afterEmitFn = fn;
+                }
+            },
+            compilation: {
+                tap() {
 
-        if (type === 'after-emit') {
-            this.afterEmitFn = fn;
-        }
+                }
+            }
+        };
     }
 }
 
@@ -64,9 +78,9 @@ describe('apply function', () => {
             // Call the registered function with a mock compilation and callback
             const compilation = Object.assign({
                 assets: {},
-                contextDependencies: [],
+                contextDependencies: new Set(),
                 errors: [],
-                fileDependencies: []
+                fileDependencies: new Set()
             }, opts.compilation);
 
             // Execute the functions in series
@@ -155,9 +169,9 @@ describe('apply function', () => {
         const compiler = new MockCompiler();
         const compilation = {
             assets: {},
-            contextDependencies: [],
+            contextDependencies: new Set(),
             errors: [],
-            fileDependencies: []
+            fileDependencies: new Set()
         };
 
         return run({
@@ -269,6 +283,9 @@ describe('apply function', () => {
                     'file.txt.gz',
                     'directory/directoryfile.txt',
                     'directory/nested/nestedfile.txt',
+                    '[special?directory]/directoryfile.txt',
+                    '[special?directory]/(special-*file).txt',
+                    '[special?directory]/nested/nestedfile.txt',
                     'noextension'
                 ],
                 patterns: [{
@@ -287,6 +304,9 @@ describe('apply function', () => {
                     'nested/file.txt.gz',
                     'nested/directory/directoryfile.txt',
                     'nested/directory/nested/nestedfile.txt',
+                    'nested/[special?directory]/directoryfile.txt',
+                    'nested/[special?directory]/(special-*file).txt',
+                    'nested/[special?directory]/nested/nestedfile.txt',
                     'nested/noextension'
                 ],
                 patterns: [{
@@ -308,6 +328,38 @@ describe('apply function', () => {
                     context: 'directory',
                     from: '**/*',
                     to: 'nested'
+                }]
+            })
+            .then(done)
+            .catch(done);
+        });
+
+        it('can use a direct glob to move multiple files in a different relative context with special characters', (done) => {
+            runEmit({
+                expectedAssetKeys: [
+                    'directoryfile.txt',
+                    '(special-*file).txt',
+                    'nested/nestedfile.txt'
+                ],
+                patterns: [{
+                    context: '[special?directory]',
+                    from: { glob: '**/*' }
+                }]
+            })
+            .then(done)
+            .catch(done);
+        });
+
+        it('can use a glob to move multiple files in a different relative context with special characters', (done) => {
+            runEmit({
+                expectedAssetKeys: [
+                    'directoryfile.txt',
+                    '(special-*file).txt',
+                    'nested/nestedfile.txt'
+                ],
+                patterns: [{
+                    context: '[special?directory]',
+                    from: '**/*'
                 }]
             })
             .then(done)
@@ -365,7 +417,10 @@ describe('apply function', () => {
                 expectedAssetKeys: [
                     'file.txt',
                     'directory/directoryfile.txt',
-                    'directory/nested/nestedfile.txt'
+                    'directory/nested/nestedfile.txt',
+                    '[special?directory]/directoryfile.txt',
+                    '[special?directory]/(special-*file).txt',
+                    '[special?directory]/nested/nestedfile.txt'
                 ],
                 patterns: [{
                     from: path.join(HELPER_DIR, '**/*.txt')
@@ -383,11 +438,31 @@ describe('apply function', () => {
                     'nested/file.txt-5b311c.gz',
                     'nested/directory/directoryfile-22af64.txt',
                     'nested/directory/nested/nestedfile-d41d8c.txt',
+                    'nested/[special?directory]/(special-*file)-0bd650.txt',
+                    'nested/[special?directory]/directoryfile-22af64.txt',
+                    'nested/[special?directory]/nested/nestedfile-d41d8c.txt',
                     'nested/noextension-d41d8c'
                 ],
                 patterns: [{
                     from: '**/*',
                     to: 'nested/[path][name]-[hash:6].[ext]'
+                }]
+            })
+            .then(done)
+            .catch(done);
+        });
+
+        it('can flatten or normalize glob matches', (done) => {
+            runEmit({
+                expectedAssetKeys: [
+                    '[special?directory]-(special-*file).txt',
+                    '[special?directory]-directoryfile.txt',
+                    'directory-directoryfile.txt'
+                ],
+                patterns: [{
+                    from: '*/*.*',
+                    test: /([^\/]+)\/([^\/]+)\.\w+$/,
+                    to: '[1]-[2].[ext]'
                 }]
             })
             .then(done)
@@ -586,6 +661,34 @@ describe('apply function', () => {
             .catch(done);
         });
 
+        it('can move a file with a context containing special characters', (done) => {
+            runEmit({
+                expectedAssetKeys: [
+                    'directoryfile.txt'
+                ],
+                patterns: [{
+                    from: 'directoryfile.txt',
+                    context: '[special?directory]'
+                }]
+            })
+            .then(done)
+            .catch(done);
+        });
+
+        it('can move a file with special characters with a context containing special characters', (done) => {
+            runEmit({
+                expectedAssetKeys: [
+                    '(special-*file).txt'
+                ],
+                patterns: [{
+                    from: '(special-*file).txt',
+                    context: '[special?directory]'
+                }]
+            })
+            .then(done)
+            .catch(done);
+        });
+
         it('can move a file to a new directory with an extension', (done) => {
             runEmit({
                 expectedAssetKeys: [
@@ -768,7 +871,7 @@ describe('apply function', () => {
             .then((compilation) => {
                 const absFrom = path.join(HELPER_DIR, 'file.txt');
 
-                expect(compilation.fileDependencies).to.have.members([absFrom]);
+                expect(compilation.fileDependencies).to.have.include(absFrom);
             })
             .then(done)
             .catch(done);
@@ -797,6 +900,9 @@ describe('apply function', () => {
                     'binextension.bin',
                     'directory/directoryfile.txt',
                     'directory/nested/nestedfile.txt',
+                    '[special?directory]/directoryfile.txt',
+                    '[special?directory]/(special-*file).txt',
+                    '[special?directory]/nested/nestedfile.txt',
                     'noextension'
                 ],
                 patterns: [{
@@ -874,6 +980,37 @@ describe('apply function', () => {
                 ],
                 patterns: [{
                     from: 'directory'
+                }]
+            })
+            .then(done)
+            .catch(done);
+        });
+
+        it('can move a directory\'s contents to the root directory using from with special characters', (done) => {
+            runEmit({
+                expectedAssetKeys: [
+                    'directoryfile.txt',
+                    '(special-*file).txt',
+                    'nested/nestedfile.txt'
+                ],
+                patterns: [{
+                    from: '[special?directory]'
+                }]
+            })
+            .then(done)
+            .catch(done);
+        });
+
+        it('can move a directory\'s contents to the root directory using context with special characters', (done) => {
+            runEmit({
+                expectedAssetKeys: [
+                    'directoryfile.txt',
+                    '(special-*file).txt',
+                    'nested/nestedfile.txt'
+                ],
+                patterns: [{
+                    from: '.',
+                    context: '[special?directory]'
                 }]
             })
             .then(done)
@@ -1056,7 +1193,7 @@ describe('apply function', () => {
             .then((compilation) => {
                 const absFrom = path.join(HELPER_DIR, 'directory');
 
-                expect(compilation.contextDependencies).to.have.members([absFrom]);
+                expect(compilation.contextDependencies).to.have.include(absFrom);
             })
             .then(done)
             .catch(done);
@@ -1202,6 +1339,9 @@ describe('apply function', () => {
                         'file.txt.gz',
                         'directory/directoryfile.txt',
                         'directory/nested/nestedfile.txt',
+                        '[special?directory]/directoryfile.txt',
+                        '[special?directory]/(special-*file).txt',
+                        '[special?directory]/nested/nestedfile.txt',
                         'noextension'
                     ],
                     options: {
@@ -1260,7 +1400,7 @@ describe('apply function', () => {
                         'noextension'
                     ],
                     options: {
-                        ignore: ['directory/**/*']
+                        ignore: ['directory/**/*', '\\[special\\?directory\\]/**/*']
                     },
                     patterns: [{
                         from: '.'
