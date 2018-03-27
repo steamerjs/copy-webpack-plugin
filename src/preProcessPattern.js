@@ -1,14 +1,14 @@
-import fs from 'fs';
-import pify from 'pify';
 import path from 'path';
 import isGlob from 'is-glob';
+import escape from './utils/escape';
 import isObject from './utils/isObject';
+import { stat } from './utils/promisify';
 
 // https://www.debuggex.com/r/VH2yS2mvJOitiyr3
 const isTemplateLike = /(\[ext\])|(\[name\])|(\[path\])|(\[folder\])|(\[emoji(:\d+)?\])|(\[(\w+:)?hash(:\w+)?(:\d+)?\])|(\[\d+\])/;
 
 export default function preProcessPattern(globalRef, pattern) {
-    const {info, debug, warning, context,
+    const {info, debug, warning, context, inputFileSystem,
         fileDependencies, contextDependencies, compilation} = globalRef;
 
     pattern = typeof pattern === 'string' ? {
@@ -46,6 +46,7 @@ export default function preProcessPattern(globalRef, pattern) {
         delete fromArgs.glob;
 
         pattern.fromArgs = fromArgs;
+        pattern.glob = escape(pattern.context, pattern.from.glob);
         pattern.absoluteFrom = path.resolve(pattern.context, pattern.from.glob);
         return Promise.resolve(pattern);
     }
@@ -58,11 +59,12 @@ export default function preProcessPattern(globalRef, pattern) {
 
     debug(`determined '${pattern.from}' to be read from '${pattern.absoluteFrom}'`);
 
-    return pify(fs.stat)(pattern.absoluteFrom)
+    return stat(inputFileSystem, pattern.absoluteFrom)
     .catch(() => {
         // If from doesn't appear to be a glob, then log a warning
         if (isGlob(pattern.from) || pattern.from.indexOf('*') !== -1) {
             pattern.fromType = 'glob';
+            pattern.glob = escape(pattern.context, pattern.from);
         } else {
             const msg = `unable to locate '${pattern.from}' at '${pattern.absoluteFrom}'`;
             warning(msg);
@@ -79,6 +81,7 @@ export default function preProcessPattern(globalRef, pattern) {
             pattern.fromType = 'dir';
             pattern.context = pattern.absoluteFrom;
             contextDependencies.push(pattern.absoluteFrom);
+            pattern.glob = escape(pattern.absoluteFrom, '**/*');
             pattern.absoluteFrom = path.join(pattern.absoluteFrom, '**/*');
             pattern.fromArgs = {
                 dot: true
@@ -86,6 +89,7 @@ export default function preProcessPattern(globalRef, pattern) {
         } else if(stat.isFile()) {
             pattern.fromType = 'file';
             pattern.context = path.dirname(pattern.absoluteFrom);
+            pattern.glob = escape(pattern.absoluteFrom);
             pattern.fromArgs = {
                 dot: true
             };
