@@ -100,6 +100,7 @@ export default function writeFile(globalRef, pattern, file) {
                         context: pattern.context
                     }
                 );
+                file.chunkName = getChunkName(file.relativeFrom, file.webpackTo);
             }
 
             if (!copyUnmodified &&
