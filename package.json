@@ -1,6 +1,6 @@
 {
-  "name": "copy-webpack-plugin",
-  "version": "4.5.1",
+  "name": "copy-webpack-plugin-hash",
+  "version": "6.0.0",
   "description": "Copy files && directories with webpack",
   "author": "Len Boyette",
   "license": "MIT",
@@ -41,9 +41,9 @@
     "standard-version": "^4.2.0",
     "is-gzip": "^2.0.0"
   },
-  "homepage": "https://github.com/webpack-contrib/copy-webpack-plugin",
-  "bugs": "https://github.com/webpack-contrib/copy-webpack-plugin/issues",
-  "repository": "https://github.com/webpack-contrib/copy-webpack-plugin.git",
+  "homepage": "https://github.com/steamerjs/copy-webpack-plugin",
+  "bugs": "https://github.com/steamerjs/copy-webpack-plugin/issues",
+  "repository": "https://github.com/steamerjs/copy-webpack-plugin.git",
   "keywords": [
     "webpack",
     "plugin",
